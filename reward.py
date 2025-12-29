@@ -1,0 +1,162 @@
+import numpy as np
+import cv2
+
+# =============================================================================
+# 輔助計算函數 (從圖像中分析盤面狀態)
+# =============================================================================
+
+def get_board_state(info, screen_frame=None, env=None):
+    """
+    改用 RAM 讀取盤面，這比視覺辨識更準確，且不會把掉落中的方塊算成洞。
+    注意：這需要 run.py 傳入 env 物件。
+    """
+    if env is None:
+        # 如果沒傳 env，只好退回視覺辨識 (不建議)
+        return (screen_frame > 0.5).astype(int)
+
+    # 獲取原始 RAM 數據
+    # unwrap 到最底層才能拿 ram
+    if hasattr(env, 'unwrapped'):
+        ram = env.unwrapped.ram
+    else:
+        # 處理多層 wrapper 的情況
+        ram = env.env.unwrapped.ram
+
+    # NES Tetris (Nintendo 版本) 的盤面記憶體通常在 0x0400 到 0x04C8
+    # 每個 Byte 代表一格。0xEF (239) 通常代表空，其他值代表有顏色。
+    # 盤面大小: 10 columns x 20 rows = 200 bytes
+
+    board_ram = ram[0x0400:0x04C8]
+
+    # 轉成 20x10 的矩陣 (Row-Major)
+    # 注意：記憶體可能是 Column-Major 或 Row-Major，通常 NES Tetris 是 Row-Major
+    # 我們先假設是標準排列，如果訓練怪怪的可能要轉置
+    board_matrix = np.zeros((20, 10), dtype=int)
+
+    for i in range(200):
+        row = i // 10
+        col = i % 10
+
+        # 0xEF (239) 是空背景 (視版本而定，有時是 0)
+        # 建議印出來觀察一下：print(board_ram)
+        # 這裡假設非 239 且非 0 就是有方塊
+        if board_ram[i] != 239 and board_ram[i] != 0:
+            board_matrix[row, col] = 1
+
+    return board_matrix
+
+def count_holes(board):
+    """計算盤面中的空洞數 (Holes)"""
+    holes = 0
+    rows, cols = board.shape
+
+    # 對每一列(column)進行掃描
+    for c in range(cols):
+        block_found = False
+        for r in range(rows):
+            if board[r, c] == 1:
+                block_found = True
+            elif block_found and board[r, c] == 0:
+                # 如果上面已經有磚塊，但下面是空的 -> 這是洞
+                holes += 1
+    return holes
+
+def count_bumps(board):
+    """計算盤面表面的崎嶇度 (Bumps)"""
+    # 計算每一列的高度
+    rows, cols = board.shape
+    col_heights = []
+
+    for c in range(cols):
+        h = 0
+        for r in range(rows):
+            if board[r, c] == 1:
+                h = rows - r # 高度是從底部算上來
+                break
+        col_heights.append(h)
+
+    # 計算相鄰列的高度差總和
+    bumps = 0
+    for i in range(len(col_heights) - 1):
+        bumps += abs(col_heights[i] - col_heights[i+1])
+
+    return bumps
+
+def get_max_height(board):
+    rows, cols = board.shape
+    for r in range(rows):
+        if np.sum(board[r, :]) > 0:
+            return rows - r
+    return 0
+
+# =============================================================================
+# 主獎勵計算器
+# =============================================================================
+
+def calculate_custom_reward(info, base_reward, prev_info, current_frame, env=None):
+    """
+    :param info: Gym info dict
+    :param base_reward: Gym 原始回傳的 reward
+    :param prev_info: 上一步的 info (包含舊的 holes/bumps 統計)
+    :param current_frame: 處理過的畫面 (84x84)，用於計算新的 holes/bumps
+    :return: (total_reward, new_info_dict)
+    """
+
+    # 1. 取得當前盤面數據
+    board = get_board_state(info, current_frame, env)
+    current_holes = count_holes(board)
+    current_bumps = count_bumps(board)
+    current_height = get_max_height(board)
+
+    # 若是第一幀，先初始化 prev_info
+    if "holes" not in prev_info:
+        prev_info["holes"] = current_holes
+        prev_info["bumps"] = current_bumps
+        prev_info["height"] = current_height
+
+    total_reward = 0
+
+    # -------------------------------------------------------------------------
+    # A. 基礎分數與行數獎勵 (沿用之前的邏輯)
+    # -------------------------------------------------------------------------
+    score_diff = info['score'] - prev_info['score']
+    if score_diff > 0:
+        total_reward += score_diff * 0.01  # 分數縮放
+
+    lines_diff = info['number_of_lines'] - prev_info['number_of_lines']
+    if lines_diff > 0:
+        total_reward += lines_diff * 10.0 # 強力獎勵消行
+
+    # -------------------------------------------------------------------------
+    # B. 進階策略獎勵 (參考該 Repo)
+    # -------------------------------------------------------------------------
+
+    # 1. 填補空洞獎勵 (若洞變少，給正分；洞變多，給負分)
+    # 權重: 3.0 (非常重要，洞是 Tetris 的天敵)
+    holes_diff = prev_info["holes"] - current_holes
+    total_reward += holes_diff * 3.0
+
+    # 2. 平整度獎勵 (若表面變平滑，給正分)
+    # 權重: 3.0
+    bumps_diff = prev_info["bumps"] - current_bumps
+    total_reward += bumps_diff * 3.0
+
+    # 3. 高度懲罰 (越高扣越多)
+    if current_height > 10:
+        total_reward -= 0.1
+
+    # 4. 死亡懲罰 (在 run.py 判斷 done 時處理，這裡先不加)
+
+    # -------------------------------------------------------------------------
+    # 更新 info 供下一步使用
+    # -------------------------------------------------------------------------
+    new_stats = {
+        "holes": current_holes,
+        "bumps": current_bumps,
+        "height": current_height
+    }
+
+    # Clip reward 避免梯度爆炸
+    total_reward = np.clip(total_reward, -15, 15)
+
+    return total_reward, new_stats
