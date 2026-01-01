@@ -1,74 +1,83 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 # Basic Block
-class Basic_C2D_Block(nn.Module):
-    def __init__(self, in_dim, out_dim, k_size, stride, is_BN):
-        super(Basic_C2D_Block, self).__init__()
-        self.conv_1 = nn.Conv2d(
-            in_dim, out_dim, kernel_size=k_size, stride=stride, padding=k_size // 2
-        )
-        self.bn_1 = nn.BatchNorm2d(out_dim) if is_BN else nn.Identity()              
-        self.lrelu = nn.LeakyReLU(inplace=False)
+# class Basic_C2D_Block(nn.Module):
+#     def __init__(self, in_dim, out_dim, k_size, stride, is_BN):
+#         super(Basic_C2D_Block, self).__init__()
+#         self.conv_1 = nn.Conv2d(
+#             in_dim, out_dim, kernel_size=k_size, stride=stride, padding=k_size // 2
+#         )
+#         self.bn_1 = nn.BatchNorm2d(out_dim) if is_BN else nn.Identity()
+#         self.lrelu = nn.LeakyReLU(inplace=False)
 
-    def forward(self, x):
-        y = self.conv_1(x)
-        y = self.bn_1(y)
-        return self.lrelu(y)
+#     def forward(self, x):
+#         y = self.conv_1(x)
+#         y = self.bn_1(y)
+#         return self.lrelu(y)
 
-# Residual Block
-class Res_C2D_Block(nn.Module):
-    def __init__(self, in_dim, out_dim, num_blocks, stride=1):
-        super(Res_C2D_Block, self).__init__()
+# # Residual Block
+# class Res_C2D_Block(nn.Module):
+#     def __init__(self, in_dim, out_dim, num_blocks, stride=1):
+#         super(Res_C2D_Block, self).__init__()
 
-        layers = []
-        for i in range(num_blocks):
-            layers.append(
-                Basic_C2D_Block(
-                    in_dim=in_dim if i == 0 else out_dim,
-                    out_dim=out_dim,
-                    k_size=3,
-                    stride=stride if i == 0 else 1, 
-                    is_BN=False,
-                )
-            )
-        self.blocks = nn.Sequential(*layers)
+#         layers = []
+#         for i in range(num_blocks):
+#             layers.append(
+#                 Basic_C2D_Block(
+#                     in_dim=in_dim if i == 0 else out_dim,
+#                     out_dim=out_dim,
+#                     k_size=3,
+#                     stride=stride if i == 0 else 1,
+#                     is_BN=False,
+#                 )
+#             )
+#         self.blocks = nn.Sequential(*layers)
 
-        self.adjust_residual = None
-        if in_dim != out_dim or stride != 1:
-            self.adjust_residual = nn.Sequential(
-                nn.Conv2d(in_dim, out_dim, kernel_size=1, stride=stride, padding=0, bias=False),
-                nn.BatchNorm2d(out_dim),
-            )
+#         self.adjust_residual = None
+#         if in_dim != out_dim or stride != 1:
+#             self.adjust_residual = nn.Sequential(
+#                 nn.Conv2d(in_dim, out_dim, kernel_size=1, stride=stride, padding=0, bias=False),
+#                 nn.BatchNorm2d(out_dim),
+#             )
 
-    def forward(self, x):
-        residual = x
-        if self.adjust_residual:
-            residual = self.adjust_residual(x)
+#     def forward(self, x):
+#         residual = x
+#         if self.adjust_residual:
+#             residual = self.adjust_residual(x)
 
-        y = self.blocks(x)
-        y += residual
-        return nn.LeakyReLU(inplace=False)(y)
+#         y = self.blocks(x)
+#         y += residual
+#         return nn.LeakyReLU(inplace=False)(y)
 
 class CustomCNN(nn.Module):
     def __init__(self, input_shape, num_actions):
         super(CustomCNN, self).__init__()
 
-        channels, _, _ = input_shape
+        # input_shape comes in as (203,) from the wrapper
+        # If your main code passes tuples like (1, 84, 84), we need to handle that.
+        # But for this wrapper, the input dimension is simply the length of the vector.
 
-        self.basic = Basic_C2D_Block(channels, 24, k_size=4, stride=4, is_BN=False)   # Basic_C2D_Block
-        self.res1  = Res_C2D_Block(24, 48, num_blocks=2, stride=2)                    # Res_C2D_Block
-        self.res2  = Res_C2D_Block(48, 96, num_blocks=2, stride=2)                    # Res_C2D_Block
+        # Determine input size
+        if isinstance(input_shape, int):
+            self.input_dim = input_shape
+        elif isinstance(input_shape, tuple):
+             # If it comes as (203,), take the first element
+            self.input_dim = input_shape[0]
+        else:
+            self.input_dim = 203 # Fallback
 
-        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)                                # Adaptive Global Average Pooling (自適應全局平均池化)
-        self.fc = nn.Linear(96, num_actions)                                          # Fully Connected Layer (全連接層)
+        self.fc1 = nn.Linear(self.input_dim, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, num_actions)
 
     def forward(self, x):
-        x = self.basic(x)
-        x = self.res1(x)
-        x = self.res2(x)
-
-        x = self.global_avg_pool(x)
+        # x shape might be (Batch, 1, 203) or (Batch, 203)
+        # We need to flatten it to (Batch, 203) just in case
         x = x.view(x.size(0), -1)
-        return self.fc(x)
+
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        return self.fc3(x)
 

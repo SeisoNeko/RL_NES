@@ -11,16 +11,26 @@ def get_board_state(info, screen_frame=None, env=None):
     注意：這需要 run.py 傳入 env 物件。
     """
     if env is None:
-        # 如果沒傳 env，只好退回視覺辨識 (不建議)
-        return (screen_frame > 0.5).astype(int)
+        raise ValueError("Environment (env) must be passed to read RAM state.")
 
+    ram = None
+    curr_env = env
     # 獲取原始 RAM 數據
     # unwrap 到最底層才能拿 ram
-    if hasattr(env, 'unwrapped'):
-        ram = env.unwrapped.ram
-    else:
-        # 處理多層 wrapper 的情況
-        ram = env.env.unwrapped.ram
+    for _ in range(10):
+        if hasattr(curr_env, 'ram'):
+            ram = curr_env.ram
+            break
+        elif hasattr(curr_env, 'unwrapped') and hasattr(curr_env.unwrapped, 'ram'):
+            ram = curr_env.unwrapped.ram
+            break
+        elif hasattr(curr_env, 'env'):
+            curr_env = curr_env.env
+        else:
+            break
+
+    if ram is None:
+        raise RuntimeError("Could not find NES RAM in the environment wrappers.")
 
     # NES Tetris (Nintendo 版本) 的盤面記憶體通常在 0x0400 到 0x04C8
     # 每個 Byte 代表一格。0xEF (239) 通常代表空，其他值代表有顏色。
@@ -93,7 +103,7 @@ def get_max_height(board):
 # 主獎勵計算器
 # =============================================================================
 
-def calculate_custom_reward(info, base_reward, prev_info, current_frame, env=None):
+def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, env=None, current_board = None):
     """
     :param info: Gym info dict
     :param base_reward: Gym 原始回傳的 reward
@@ -103,7 +113,11 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame, env=Non
     """
 
     # 1. 取得當前盤面數據
-    board = get_board_state(info, current_frame, env)
+    if current_board is not None:
+        board = current_board
+    else:
+        board = get_board_state(info, current_frame, env)
+
     current_holes = count_holes(board)
     current_bumps = count_bumps(board)
     current_height = get_max_height(board)
@@ -132,20 +146,22 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame, env=Non
     # -------------------------------------------------------------------------
 
     # 1. 填補空洞獎勵 (若洞變少，給正分；洞變多，給負分)
-    # 權重: 3.0 (非常重要，洞是 Tetris 的天敵)
     holes_diff = prev_info["holes"] - current_holes
-    total_reward += holes_diff * 3.0
+    total_reward += holes_diff * 0.5
 
     # 2. 平整度獎勵 (若表面變平滑，給正分)
-    # 權重: 3.0
     bumps_diff = prev_info["bumps"] - current_bumps
-    total_reward += bumps_diff * 3.0
+    total_reward += bumps_diff * 0.2
+
+    # 生存獎勵
+    if score_diff > 0 and lines_diff == 0:
+        total_reward += 5.0  # 磚塊落地給 5 分 (鼓勵它多放磚塊)
 
     # 3. 高度懲罰 (越高扣越多)
-    if current_height > 10:
-        total_reward -= 0.1
+    # if current_height > 16:
+    #     total_reward -= 0.05
 
-    # 4. 死亡懲罰 (在 run.py 判斷 done 時處理，這裡先不加)
+    # 4. 死亡懲罰
 
     # -------------------------------------------------------------------------
     # 更新 info 供下一步使用
@@ -157,6 +173,6 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame, env=Non
     }
 
     # Clip reward 避免梯度爆炸
-    total_reward = np.clip(total_reward, -15, 15)
+    total_reward = np.clip(total_reward, -15, 100)
 
     return total_reward, new_stats
