@@ -16,32 +16,80 @@ class TetrisWrapper(gym.Wrapper):
             "height": 0
         }
 
+        # Calculate new Observation Space Size
+        # 200 (Board) + 3 (Stats) + 7 (Current Piece One-Hot) + 7 (Next Piece One-Hot) + 2 (XY Pos)
+        # Total = 219
+        self.obs_dim = 219
         self.observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(203, ), dtype=np.float32
+            low=0.0, high=1.0, shape=(self.obs_dim,), dtype=np.float32
         )
+
+    def _get_ram(self):
+        """Robustly fetch RAM from the environment"""
+        if hasattr(self.env, 'ram'):
+            return self.env.ram
+        elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, 'ram'):
+            return self.env.unwrapped.ram
+        elif hasattr(self.env, 'env'):
+            return self.env.env.unwrapped.ram
+        raise RuntimeError("RAM not found")
+
+    def _get_one_hot_piece(self, piece_id):
+        """Converts piece ID (0-6) to One-Hot Vector (size 7)"""
+        vec = np.zeros(7, dtype=np.float32)
+        # NES Tetris Piece IDs are usually 0x00 to 0x06 (T, J, Z, O, S, L, I)
+        # Sometimes 0x07-0x12 depending on rotation, but usually modulo 7 works for type
+        if piece_id is not None and 0 <= piece_id < 255:
+            # Simple modulo to handle rotation variants if any
+            idx = piece_id % 7
+            vec[idx] = 1.0
+        return vec
 
     def _get_state_vector(self, info):
         """
         Constructs the state vector using functions from reward.py
         """
-        # 1. Get the board (20x10 matrix)
-        # We pass None for screen_frame because we are using RAM now
+
+        # 1. Get RAM
+        ram = self._get_ram()
+
+        # 2. Get Board (Static Blocks)
+        # We use the helper from reward.py, but pass the RAM we found
         board = get_board_state(info, screen_frame=None, env=self.env)
 
-        # 2. Calculate features
+        # 3. Get Moving Piece Info (The Missing Link!)
+        curr_piece_id = ram[0x0042]
+        next_piece_id = ram[0x00BF]
+        curr_x = ram[0x0041]
+        curr_y = ram[0x0040]
+
+        # 4. Feature Engineering
+        # One-Hot Encode Pieces
+        curr_piece_vec = self._get_one_hot_piece(curr_piece_id)
+        next_piece_vec = self._get_one_hot_piece(next_piece_id)
+
+        # Normalize Position
+        # X is usually 0-9, Y is 0-19
+        pos_vec = np.array([curr_x / 10.0, curr_y / 20.0], dtype=np.float32)
+
+        # Existing Stats
         holes = count_holes(board)
         bumps = count_bumps(board)
         height = get_max_height(board)
+        stats_vec = np.array([holes/100.0, bumps/100.0, height/20.0], dtype=np.float32)
 
-        # 3. Flatten board to 1D array (200,)
+        # Flatten Board
         board_flat = board.flatten().astype(np.float32)
 
-        # 4. Create feature array (3,)
-        # Normalize slightly to help training (optional but recommended)
-        features = np.array([holes, bumps, height], dtype=np.float32)
-
-        # 5. Concatenate to make shape (203,)
-        state = np.concatenate((board_flat, features))
+        # 5. Concatenate Everything
+        # [200] + [3] + [7] + [7] + [2] = 219
+        state = np.concatenate((
+            board_flat,
+            stats_vec,
+            curr_piece_vec,
+            next_piece_vec,
+            pos_vec
+        ))
 
         return state, board
 
@@ -65,7 +113,7 @@ class TetrisWrapper(gym.Wrapper):
             "height": 0
         }
 
-        state, current_board = self._get_state_vector(info)
+        state, _ = self._get_state_vector(info)
         return state, info
 
     def step(self, action):

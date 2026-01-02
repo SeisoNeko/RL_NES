@@ -135,33 +135,30 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
     # -------------------------------------------------------------------------
     score_diff = info['score'] - prev_info['score']
     if score_diff > 0:
-        total_reward += score_diff * 0.01  # 分數縮放
+        total_reward += 5.0
 
     lines_diff = info['number_of_lines'] - prev_info['number_of_lines']
     if lines_diff > 0:
-        total_reward += lines_diff * 10.0 # 強力獎勵消行
+        total_reward += lines_diff * 20.0 # 強力獎勵消行
+        if lines_diff >= 2:
+            total_reward += lines_diff * 5.0  # 額外獎勵多行消除
+        print(f"Cleared {lines_diff} lines! +{lines_diff * 20.0} reward.")
 
     # -------------------------------------------------------------------------
     # B. 進階策略獎勵 (參考該 Repo)
     # -------------------------------------------------------------------------
 
-    # 1. 填補空洞獎勵 (若洞變少，給正分；洞變多，給負分)
+    # 1. 填補空洞獎勵
     holes_diff = prev_info["holes"] - current_holes
-    total_reward += holes_diff * 0.5
+    total_reward += holes_diff * 0.2
 
-    # 2. 平整度獎勵 (若表面變平滑，給正分)
+    # 2. 平整度獎勵
     bumps_diff = prev_info["bumps"] - current_bumps
     total_reward += bumps_diff * 0.2
 
-    # 生存獎勵
-    if score_diff > 0 and lines_diff == 0:
-        total_reward += 5.0  # 磚塊落地給 5 分 (鼓勵它多放磚塊)
-
     # 3. 高度懲罰 (越高扣越多)
-    # if current_height > 16:
-    #     total_reward -= 0.05
-
-    # 4. 死亡懲罰
+    if current_height > 15:
+        total_reward -= 0.01
 
     # -------------------------------------------------------------------------
     # 更新 info 供下一步使用
@@ -173,6 +170,6 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
     }
 
     # Clip reward 避免梯度爆炸
-    total_reward = np.clip(total_reward, -15, 100)
+    # total_reward = np.clip(total_reward, -15, 100)
 
     return total_reward, new_stats

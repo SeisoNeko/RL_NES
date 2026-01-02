@@ -24,8 +24,6 @@ from gym.vector import AsyncVectorEnv
 
 
 # ========== config ===========
-#env = gym_super_mario_bros.make('SuperMarioBros-1-1-v0')   #
-#env = JoypadSpace(env, SIMPLE_MOVEMENT)
 import gym
 from gym.wrappers import StepAPICompatibility
 
@@ -65,9 +63,6 @@ def make_env(rank):
         env = StepAPICompatibility(env, output_truncation_bool=False)
         env = JoypadSpace(env, MOVEMENT)
 
-        # env = RecordVideo(env, video_folder="videos", episode_trigger=lambda x: x % 100 == 0)
-
-        # 套用我們剛寫的全能 Wrapper
         env = TetrisWrapper(env, skip=4)
 
         if rank == 0 and args.visualize:
@@ -83,11 +78,11 @@ parser.add_argument("--lr", type=float, default=0.00001, help="Learning rate")
 parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
 parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
 parser.add_argument("--memory_size", type=int, default=10000, help="Replay memory size")
-parser.add_argument("--epsilon_end", type=float, default=0.3, help="Final epsilon value")
+parser.add_argument("--epsilon_end", type=float, default=0.1, help="Final epsilon value")
 parser.add_argument("--target_update", type=int, default=1000, help="Target network update frequency")
 parser.add_argument("--total_timesteps", type=int, default=200000000, help="Total training timesteps")
-parser.add_argument("--visualize", type=bool, default=False, help="Render the environment")
-parser.add_argument("--num_envs", type=int, default=1, help="Number of parallel environments")
+parser.add_argument("--visualize", action='store_true', help="Render the environment")
+parser.add_argument("--num_workers", type=int, default=8, help="Number of parallel environments")
 parser.add_argument("--load_checkpoint", type=str, default=None, help="Path to checkpoint to load")
 
 args = parser.parse_args()
@@ -100,10 +95,10 @@ EPSILON_END = args.epsilon_end
 TARGET_UPDATE = args.target_update
 TOTAL_TIMESTEPS = args.total_timesteps
 VISUALIZE = args.visualize
-NUM_ENVS = args.num_envs
+NUM_ENVS = args.num_workers
 
 EPSILON_START = 1.0           # 一開始 100% 隨機
-EPSILON_DECAY = 5e-6      # 每次訓練減少多少 (數值取決於你的總步數)
+EPSILON_DECAY = 5e-6      # 每次訓練減少多少
 
 envs = AsyncVectorEnv([make_env(i) for i in range(NUM_ENVS)])
 
@@ -113,8 +108,8 @@ device = torch.device("cuda")
 
 
 # ========================DQN Initialization==========================================
-obs_shape = (203, )                         #obs_shape = (1, 84, 84) --- IGNORE ---
-n_actions = len(MOVEMENT)                #定義動作空間大小，使用SIMPLE_MOVEMENT中的動作數量（例如向右移動、跳躍等）
+obs_shape = (219, )
+n_actions = len(MOVEMENT)                #定義動作空間大小，使用SIMPLE_MOVEMENT中的動作數量
 
 model = CustomCNN                               #指定模型架構為CustomCNN用於處理圖像並預測各動作的 Q 值
 dqn = DQN(                                      #初始化 DQN agent
@@ -146,29 +141,25 @@ cumulative_reward = 0                           # 當前時間步的總累積獎
 
 
 #=======================訓練開始============================
-state, _ = envs.reset()    # (NUM_ENVS, 84, 84)
-state_input = np.expand_dims(state, axis=1)  # (NUM_ENVS, 1, 84, 84)
+state, _ = envs.reset()
+state_input = np.expand_dims(state, axis=1)  # (NUM_ENVS, 1, 203)
 cumulative_reward = np.zeros(NUM_ENVS)
 
 for timestep in tqdm(range(1, TOTAL_TIMESTEPS + 1, NUM_ENVS), desc="Training"):
 
     actions = []
     for i in range(NUM_ENVS):
-        single_state = state_input[i]  # (1, 84, 84)
+        single_state = state_input[i]
         action = dqn.take_action(single_state)  # Get action for each env
         actions.append(action)
 
     next_states, rewards, terminateds, truncateds, infos = envs.step(actions)  # Step all envs
     dones = [t or tr for t, tr in zip(terminateds, truncateds)]
 
-    next_states_input = np.expand_dims(next_states, axis=1)  # (NUM_ENVS, 1, 84, 84)
+    next_states_input = np.expand_dims(next_states, axis=1)
 
     for i in range(NUM_ENVS):
         current_reward = rewards[i]
-
-        if dones[i]:
-            current_reward -= 0.0  # 死亡懲罰
-
         cumulative_reward[i] += current_reward
 
         memory.push(
@@ -205,11 +196,10 @@ for timestep in tqdm(range(1, TOTAL_TIMESTEPS + 1, NUM_ENVS), desc="Training"):
             dqn.train_per_step(state_dict)
 
 
-        # Update epsilon
+    # Update epsilon
     dqn.epsilon = max(EPSILON_END, dqn.epsilon - EPSILON_DECAY)  # Gradually decrease epsilon
     if step % 10000 == 0:
         print(f"Step: {step}, Epsilon: {dqn.epsilon:.4f}")
-    #================================更新狀態訊息
     step += 1
 
     # Print cumulative reward for the current timestep

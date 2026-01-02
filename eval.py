@@ -17,7 +17,7 @@ from wrapper import TetrisWrapper  # 必須確保 wrapper.py 在同一目錄下
 # ========== Config ===========
 # 請修改這裡為你想要測試的模型權重路徑
 parser = argparse.ArgumentParser()
-parser.add_argument('--model-path', type=str, default=os.path.join("ckpt_test", "best.pth"),
+parser.add_argument('--model', type=str, default=os.path.join("ckpt_test", "best.pth"),
                     help='Path to the trained model weights')
 parser.add_argument('--episodes', type=int, default=5,
                     help='Number of episodes to run for evaluation')
@@ -25,14 +25,14 @@ parser.add_argument('--visualize', action='store_true', default=False,
                     help='Whether to visualize the gameplay')
 args = parser.parse_args()
 
-MODEL_PATH = os.path.join("ckpt_test", args.model_path)
-VISUALIZE = args.visualize          
+MODEL_PATH = os.path.join("ckpt_test", args.model)
+VISUALIZE = args.visualize
 TOTAL_EPISODES = args.episodes        # 測試玩幾場
 FPS = 30                  # 限制顯示速度 (不然電腦太快會看不清楚)
 
 # 硬體設定
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-OBS_SHAPE = (203,)
+OBS_SHAPE = (219,)
 N_ACTIONS = len(MOVEMENT)
 
 # =============================================================================
@@ -128,7 +128,8 @@ for episode in range(1, TOTAL_EPISODES + 1):
 
         # 執行動作
         # Wrapper 回傳 5 個值 (state, reward, done, truncated, info)
-        next_state, reward, done, truncated, info = env.step(action)
+        next_state, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
 
         # 維度處理 Next State
         # next_state 從 (84, 84) -> (1, 84, 84)
