@@ -165,8 +165,8 @@ class TetrisWrapper(gym.Wrapper):
         # 3. Get Moving Piece Info (The Missing Link!)
         curr_piece_id = ram[0x0042]
         next_piece_id = ram[0x00BF]
-        curr_x = ram[0x0041]
-        curr_y = ram[0x0040]
+        curr_x = ram[0x0040]
+        curr_y = ram[0x0041]
 
         # 4. Feature Engineering
         # One-Hot Encode Pieces

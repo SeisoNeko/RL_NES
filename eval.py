@@ -144,6 +144,7 @@ for episode in range(1, TOTAL_EPISODES + 1):
             # print(f"Current Piece shape: {piece_dict.get(np.argmax(info.get('current_piece', [0]*7)), 'Unknown')}")
             # print(f"Current Piece rotation: {np.argmax(info.get('current_rotation', [0]*4))}")
             # print(f"Next Piece shape: {piece_dict.get(np.argmax(info.get('next_piece', [0]*7)), 'Unknown')}")
+            # print(f"Current X: {info.get('curr_x', 'N/A')}, Current Y: {info.get('curr_y', 'N/A')}")
 
         done = terminated or truncated
 
