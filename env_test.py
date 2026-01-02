@@ -19,3 +19,7 @@ for step in range(5000):
         print(f"Step: {step}, Reward: {reward}, Done: {done}")
 
 env.close()
+
+# cuda test
+import torch
+print("CUDA available:", torch.cuda.is_available())
