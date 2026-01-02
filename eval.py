@@ -57,8 +57,6 @@ if isinstance(env, gym.wrappers.TimeLimit):
 env = StepAPICompatibility(env, output_truncation_bool=False)
 env = JoypadSpace(env, MOVEMENT)
 
-# 套用全能 Wrapper (負責切圖、灰階、SkipFrame)
-# 這樣我們拿到的 state 就已經是 (84, 84) 的乾淨圖了
 env = TetrisWrapper(env, skip=4)
 
 if not VISUALIZE:
@@ -108,11 +106,7 @@ for episode in range(1, TOTAL_EPISODES + 1):
     state, _ = env.reset()
 
     # 維度處理:
-    # Wrapper 回傳的 state 是 (84, 84)
-    # 我們需要轉成 (1, 1, 84, 84) 給 CNN 吃
-    # 步驟 1: 加 Channel -> (1, 84, 84)
     state = np.expand_dims(state, axis=0)
-    # 步驟 2: 加 Batch (在此變數中暫存，等等轉 Tensor) -> (1, 1, 84, 84)
 
     done = False
     total_reward = 0
@@ -125,7 +119,7 @@ for episode in range(1, TOTAL_EPISODES + 1):
             # import time
             # time.sleep(1/FPS)
 
-        # 準備輸入 Tensor (1, 1, 84, 84)
+        # 準備輸入 Tensor
         state_input = np.expand_dims(state, axis=0)
         state_tensor = torch.tensor(state_input, dtype=torch.float32, device=device)
 
@@ -140,20 +134,20 @@ for episode in range(1, TOTAL_EPISODES + 1):
         # Wrapper 回傳 5 個值 (state, reward, done, truncated, info)
         next_state, reward, terminated, truncated, info = env.step(action)
         
-        if 'board' in info:
+        # if 'board' in info:
             # ANSI escape code to clear screen and move cursor to home for real-time effect
             # print("\033[H\033[J", end="") 
             # print("--- Board State ---")
             # for row in info['board']:
             #     print("".join(["[]" if x else " ." for x in row]))
             # print("-------------------")
-            print(f"Current Piece shape: {piece_dict.get(np.argmax(info.get('current_piece', [0]*7)), 'Unknown')}")
-            print(f"Next Piece shape: {piece_dict.get(np.argmax(info.get('next_piece', [0]*7)), 'Unknown')}")
+            # print(f"Current Piece shape: {piece_dict.get(np.argmax(info.get('current_piece', [0]*7)), 'Unknown')}")
+            # print(f"Current Piece rotation: {np.argmax(info.get('current_rotation', [0]*4))}")
+            # print(f"Next Piece shape: {piece_dict.get(np.argmax(info.get('next_piece', [0]*7)), 'Unknown')}")
 
         done = terminated or truncated
 
         # 維度處理 Next State
-        # next_state 從 (84, 84) -> (1, 84, 84)
         next_state = np.expand_dims(next_state, axis=0)
 
         state = next_state

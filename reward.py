@@ -58,7 +58,9 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
     :param info: Gym info dict
     :param base_reward: Gym 原始回傳的 reward
     :param prev_info: 上一步的 info (包含舊的 holes/bumps 統計)
-    :param current_frame: 處理過的畫面 (84x84)，用於計算新的 holes/bumps
+    :param current_frame: 處理過的畫面 (84x84)，用於計算新的 holes/bumps --> aborted
+    :param env: 環境實例 (TetrisEnv)，用於取得盤面狀態 --> aborted
+    :param current_board: 當前的盤面二值矩陣 (0/1)
     :return: (total_reward, new_info_dict)
     """
 

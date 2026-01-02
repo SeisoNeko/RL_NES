@@ -106,7 +106,7 @@ def main():
 
 
     # ========================DQN Initialization==========================================
-    obs_shape = (219, )
+    obs_shape = (223, )
     n_actions = len(MOVEMENT)                #定義動作空間大小，使用SIMPLE_MOVEMENT中的動作數量
 
     model = CustomCNN                               #指定模型架構為CustomCNN用於處理圖像並預測各動作的 Q 值
@@ -203,6 +203,13 @@ def main():
         # Print cumulative reward for the current timestep
         if timestep % 1000 == 0:
             print(f"Timestep {timestep} - Total Reward: {cumulative_reward}")
+
+        if timestep % 10000 == 0:
+            # Save model checkpoint
+            os.makedirs("ckpt_test", exist_ok=True)
+            model_path = os.path.join("ckpt_test",f"step_{timestep}.pth")
+            torch.save(dqn.q_net.state_dict(), model_path)
+            print(f"Model checkpoint saved at timestep {timestep}: {model_path}")
 
 
     envs.close()

@@ -56,7 +56,6 @@ class CustomCNN(nn.Module):
         super(CustomCNN, self).__init__()
 
         # input_shape comes in as (203,) from the wrapper
-        # If your main code passes tuples like (1, 84, 84), we need to handle that.
         # But for this wrapper, the input dimension is simply the length of the vector.
 
         # Determine input size
