@@ -32,8 +32,18 @@ FPS = 30                  # 限制顯示速度 (不然電腦太快會看不清�
 
 # 硬體設定
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-OBS_SHAPE = (219,)
+OBS_SHAPE = (223,)
 N_ACTIONS = len(MOVEMENT)
+
+piece_dict = {
+    0: "T",
+    1: "J",
+    2: "Z",
+    3: "O",
+    4: "S",
+    5: "L",
+    6: "I"
+}
 
 # =============================================================================
 # 1. 環境設置 (必須跟訓練時的邏輯一模一樣)
@@ -129,6 +139,17 @@ for episode in range(1, TOTAL_EPISODES + 1):
         # 執行動作
         # Wrapper 回傳 5 個值 (state, reward, done, truncated, info)
         next_state, reward, terminated, truncated, info = env.step(action)
+        
+        if 'board' in info:
+            # ANSI escape code to clear screen and move cursor to home for real-time effect
+            # print("\033[H\033[J", end="") 
+            # print("--- Board State ---")
+            # for row in info['board']:
+            #     print("".join(["[]" if x else " ." for x in row]))
+            # print("-------------------")
+            print(f"Current Piece shape: {piece_dict.get(np.argmax(info.get('current_piece', [0]*7)), 'Unknown')}")
+            print(f"Next Piece shape: {piece_dict.get(np.argmax(info.get('next_piece', [0]*7)), 'Unknown')}")
+
         done = terminated or truncated
 
         # 維度處理 Next State

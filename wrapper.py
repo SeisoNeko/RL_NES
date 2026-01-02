@@ -2,7 +2,7 @@ import gym
 import numpy as np
 from gym import spaces
 from utils import preprocess_frame
-from reward import get_board_state, count_holes, count_bumps, get_max_height, calculate_custom_reward
+from reward import count_holes, count_bumps, get_max_height, calculate_custom_reward
 
 class TetrisWrapper(gym.Wrapper):
     def __init__(self, env, skip=4):
@@ -17,9 +17,9 @@ class TetrisWrapper(gym.Wrapper):
         }
 
         # Calculate new Observation Space Size
-        # 200 (Board) + 3 (Stats) + 7 (Current Piece One-Hot) + 7 (Next Piece One-Hot) + 2 (XY Pos)
-        # Total = 219
-        self.obs_dim = 219
+        # 200 (Board) + 3 (Stats) + 7 (Current Piece One-Hot) + 4 rotation + 7 (Next Piece One-Hot) + 2 (XY Pos)
+        # Total = 223
+        self.obs_dim = 223
         self.observation_space = spaces.Box(
             low=0.0, high=1.0, shape=(self.obs_dim,), dtype=np.float32
         )
@@ -33,16 +33,121 @@ class TetrisWrapper(gym.Wrapper):
         elif hasattr(self.env, 'env'):
             return self.env.env.unwrapped.ram
         raise RuntimeError("RAM not found")
+    
+    def _get_board_state(self, env=None):
+        """
+        改用 RAM 讀取盤面，這比視覺辨識更準確，且不會把掉落中的方塊算成洞。
+        注意：這需要 run.py 傳入 env 物件。
+        """
+        if env is None:
+            raise ValueError("Environment (env) must be passed to read RAM state.")
+
+        ram = None
+        curr_env = env
+        # 獲取原始 RAM 數據
+        # unwrap 到最底層才能拿 ram
+        for _ in range(10):
+            if hasattr(curr_env, 'ram'):
+                ram = curr_env.ram
+                break
+            elif hasattr(curr_env, 'unwrapped') and hasattr(curr_env.unwrapped, 'ram'):
+                ram = curr_env.unwrapped.ram
+                break
+            elif hasattr(curr_env, 'env'):
+                curr_env = curr_env.env
+            else:
+                break
+
+        if ram is None:
+            raise RuntimeError("Could not find NES RAM in the environment wrappers.")
+
+        # NES Tetris (Nintendo 版本) 的盤面記憶體通常在 0x0400 到 0x04C8
+        # 每個 Byte 代表一格。0xEF (239) 通常代表空，其他值代表有顏色。
+        # 盤面大小: 10 columns x 20 rows = 200 bytes
+
+        board_ram = ram[0x0400:0x04C8]
+
+        # 轉成 20x10 的矩陣 (Row-Major)
+        # 注意：記憶體可能是 Column-Major 或 Row-Major，通常 NES Tetris 是 Row-Major
+        # 我們先假設是標準排列，如果訓練怪怪的可能要轉置
+        board_matrix = np.zeros((20, 10), dtype=int)
+
+        for i in range(200):
+            row = i // 10
+            col = i % 10
+
+            # 0xEF (239) 是空背景 (視版本而定，有時是 0)
+            # 建議印出來觀察一下：print(board_ram)
+            # 這裡假設非 239 且非 0 就是有方塊
+            if board_ram[i] != 239 and board_ram[i] != 0:
+                board_matrix[row, col] = 1
+
+        return board_matrix
 
     def _get_one_hot_piece(self, piece_id):
-        """Converts piece ID (0-6) to One-Hot Vector (size 7)"""
+        """
+        Maps the 19 NES Tetris orientation states to 7 Piece Types.
+        Reference from tetris_env.py _PIECE_ORIENTATION_TABLE:
+        0-3: T, 4-7: J, 8-9: Z, 10: O, 11-12: S, 13-16: L, 17-18: I
+        """
         vec = np.zeros(7, dtype=np.float32)
-        # NES Tetris Piece IDs are usually 0x00 to 0x06 (T, J, Z, O, S, L, I)
-        # Sometimes 0x07-0x12 depending on rotation, but usually modulo 7 works for type
-        if piece_id is not None and 0 <= piece_id < 255:
-            # Simple modulo to handle rotation variants if any
-            idx = piece_id % 7
-            vec[idx] = 1.0
+        
+        if piece_id is None:
+            return vec
+
+        piece_type = -1
+        
+        # Exact mapping based on the ROM internal table
+        if 0 <= piece_id <= 3: 
+            piece_type = 0   # T
+        elif 4 <= piece_id <= 7: 
+            piece_type = 1   # J
+        elif 8 <= piece_id <= 9: 
+            piece_type = 2   # Z
+        elif piece_id == 10:     
+            piece_type = 3   # O
+        elif 11 <= piece_id <= 12: 
+            piece_type = 4   # S
+        elif 13 <= piece_id <= 16: 
+            piece_type = 5   # L
+        elif 17 <= piece_id <= 18: 
+            piece_type = 6   # I
+            
+        if piece_type != -1:
+            vec[piece_type] = 1.0
+            
+        return vec
+    
+    def _get_rotation_one_hot(self, piece_id):
+        """
+        Extracts rotation (0, 1, 2, 3) from the raw Piece ID.
+        Returns a One-Hot vector of size 4.
+        """
+        vec = np.zeros(4, dtype=np.float32)
+        if piece_id is None: return vec
+
+        rotation_idx = 0
+        
+        # Logic derived from tetris_env.py ranges
+        if 0 <= piece_id <= 3:   # T (4 states)
+            rotation_idx = piece_id - 0
+        elif 4 <= piece_id <= 7: # J (4 states)
+            rotation_idx = piece_id - 4
+        elif 8 <= piece_id <= 9: # Z (2 states)
+            rotation_idx = piece_id - 8
+        elif piece_id == 10:     # O (1 state)
+            rotation_idx = 0
+        elif 11 <= piece_id <= 12: # S (2 states)
+            rotation_idx = piece_id - 11
+        elif 13 <= piece_id <= 16: # L (4 states)
+            rotation_idx = piece_id - 13
+        elif 17 <= piece_id <= 18: # I (2 states)
+            rotation_idx = piece_id - 17
+
+        # Safety clamp just in case
+        if 0 <= rotation_idx < 4:
+            vec[rotation_idx] = 1.0
+            
         return vec
 
     def _get_state_vector(self, info):
@@ -55,7 +160,7 @@ class TetrisWrapper(gym.Wrapper):
 
         # 2. Get Board (Static Blocks)
         # We use the helper from reward.py, but pass the RAM we found
-        board = get_board_state(info, screen_frame=None, env=self.env)
+        board = self._get_board_state(env=self.env)
 
         # 3. Get Moving Piece Info (The Missing Link!)
         curr_piece_id = ram[0x0042]
@@ -66,7 +171,11 @@ class TetrisWrapper(gym.Wrapper):
         # 4. Feature Engineering
         # One-Hot Encode Pieces
         curr_piece_vec = self._get_one_hot_piece(curr_piece_id)
+        curr_rot_vec = self._get_rotation_one_hot(curr_piece_id)
         next_piece_vec = self._get_one_hot_piece(next_piece_id)
+        info['current_piece'] = curr_piece_vec
+        info['current_rotation'] = curr_rot_vec
+        info['next_piece'] = next_piece_vec
 
         # Normalize Position
         # X is usually 0-9, Y is 0-19
@@ -82,13 +191,14 @@ class TetrisWrapper(gym.Wrapper):
         board_flat = board.flatten().astype(np.float32)
 
         # 5. Concatenate Everything
-        # [200] + [3] + [7] + [7] + [2] = 219
+        # [200] + [3] + [7] + [4] + [7] + [2] = 223
         state = np.concatenate((
-            board_flat,
-            stats_vec,
-            curr_piece_vec,
-            next_piece_vec,
-            pos_vec
+            board_flat,     #200
+            stats_vec,      #3
+            curr_piece_vec, #7
+            curr_rot_vec,   #4
+            next_piece_vec, #7
+            pos_vec         #2  
         ))
 
         return state, board
@@ -138,7 +248,7 @@ class TetrisWrapper(gym.Wrapper):
 
         # 2. Preprocess
         state, current_board = self._get_state_vector(info)
-
+        info["board"] = current_board
 
         # 3. Calculate Custom Reward
         custom_reward, new_stats = calculate_custom_reward(

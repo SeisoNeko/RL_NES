@@ -5,56 +5,6 @@ import cv2
 # 輔助計算函數 (從圖像中分析盤面狀態)
 # =============================================================================
 
-def get_board_state(info, screen_frame=None, env=None):
-    """
-    改用 RAM 讀取盤面，這比視覺辨識更準確，且不會把掉落中的方塊算成洞。
-    注意：這需要 run.py 傳入 env 物件。
-    """
-    if env is None:
-        raise ValueError("Environment (env) must be passed to read RAM state.")
-
-    ram = None
-    curr_env = env
-    # 獲取原始 RAM 數據
-    # unwrap 到最底層才能拿 ram
-    for _ in range(10):
-        if hasattr(curr_env, 'ram'):
-            ram = curr_env.ram
-            break
-        elif hasattr(curr_env, 'unwrapped') and hasattr(curr_env.unwrapped, 'ram'):
-            ram = curr_env.unwrapped.ram
-            break
-        elif hasattr(curr_env, 'env'):
-            curr_env = curr_env.env
-        else:
-            break
-
-    if ram is None:
-        raise RuntimeError("Could not find NES RAM in the environment wrappers.")
-
-    # NES Tetris (Nintendo 版本) 的盤面記憶體通常在 0x0400 到 0x04C8
-    # 每個 Byte 代表一格。0xEF (239) 通常代表空，其他值代表有顏色。
-    # 盤面大小: 10 columns x 20 rows = 200 bytes
-
-    board_ram = ram[0x0400:0x04C8]
-
-    # 轉成 20x10 的矩陣 (Row-Major)
-    # 注意：記憶體可能是 Column-Major 或 Row-Major，通常 NES Tetris 是 Row-Major
-    # 我們先假設是標準排列，如果訓練怪怪的可能要轉置
-    board_matrix = np.zeros((20, 10), dtype=int)
-
-    for i in range(200):
-        row = i // 10
-        col = i % 10
-
-        # 0xEF (239) 是空背景 (視版本而定，有時是 0)
-        # 建議印出來觀察一下：print(board_ram)
-        # 這裡假設非 239 且非 0 就是有方塊
-        if board_ram[i] != 239 and board_ram[i] != 0:
-            board_matrix[row, col] = 1
-
-    return board_matrix
-
 def count_holes(board):
     """計算盤面中的空洞數 (Holes)"""
     holes = 0
@@ -116,7 +66,7 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
     if current_board is not None:
         board = current_board
     else:
-        board = get_board_state(info, current_frame, env)
+        raise ValueError("current_board must be provided to calculate_custom_reward")
 
     current_holes = count_holes(board)
     current_bumps = count_bumps(board)
