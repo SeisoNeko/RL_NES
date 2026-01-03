@@ -148,6 +148,7 @@ def main():
         actions = []
         for i in range(NUM_ENVS):
             single_state = state_input[i]
+            print(f"Single state shape: {single_state.shape}")
             action = dqn.take_action(single_state)  # Get action for each env
             actions.append(action)
 
@@ -155,6 +156,7 @@ def main():
         dones = [t or tr for t, tr in zip(terminateds, truncateds)]
 
         next_states_input = np.expand_dims(next_states, axis=1)
+        print(f"Next states input shape: {next_states_input.shape}")
 
         for i in range(NUM_ENVS):
             current_reward = rewards[i]
@@ -179,7 +181,8 @@ def main():
                     print(f"Model saved: {model_path}")
                 cumulative_reward[i] = 0  # Reset for next episode
 
-        states_input = next_states_input
+        state_input = next_states_input
+        print(f"Updated state input shape: {state_input.shape}")
 
         if len(memory) >= BATCH_SIZE:
             for _ in range(4):  # Train 4 times per timestep
