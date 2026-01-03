@@ -76,7 +76,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--memory_size", type=int, default=10000, help="Replay memory size")
-    parser.add_argument("--epsilon_end", type=float, default=0.1, help="Final epsilon value")
+    parser.add_argument("--epsilon_end", type=float, default=0.001, help="Final epsilon value")
     parser.add_argument("--target_update", type=int, default=1000, help="Target network update frequency")
     parser.add_argument("--total_timesteps", type=int, default=200000000, help="Total training timesteps")
     parser.add_argument("--visualize", action='store_true', help="Render the environment")
@@ -96,7 +96,7 @@ def main():
     NUM_ENVS = args.num_workers
 
     EPSILON_START = 1.0           # 一開始 100% 隨機
-    EPSILON_DECAY = 5e-6      # 每次訓練減少多少
+    EPSILON_DECAY = 0.00001      # 每次訓練減少多少
 
     envs = AsyncVectorEnv([make_env(i, args) for i in range(NUM_ENVS)])
 
