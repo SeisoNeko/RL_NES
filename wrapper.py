@@ -167,15 +167,17 @@ class TetrisWrapper(gym.Wrapper):
         next_piece_id = ram[0x00BF]
         curr_x = ram[0x0040]
         curr_y = ram[0x0041]
+        """ info['curr_x'] = curr_x
+        info['curr_y'] = curr_y """
 
         # 4. Feature Engineering
         # One-Hot Encode Pieces
         curr_piece_vec = self._get_one_hot_piece(curr_piece_id)
         curr_rot_vec = self._get_rotation_one_hot(curr_piece_id)
         next_piece_vec = self._get_one_hot_piece(next_piece_id)
-        info['current_piece'] = curr_piece_vec
+        """ info['current_piece'] = curr_piece_vec
         info['current_rotation'] = curr_rot_vec
-        info['next_piece'] = next_piece_vec
+        info['next_piece'] = next_piece_vec """
 
         # Normalize Position
         # X is usually 0-9, Y is 0-19
