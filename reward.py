@@ -94,14 +94,14 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
     # -------------------------------------------------------------------------
     score_diff = info['score'] - prev_info['score']
     if score_diff > 0:
-        total_reward += score_diff * 0.1  # 基礎分數獎勵
+        total_reward += score_diff  # 基礎分數獎勵
 
     lines_diff = info['number_of_lines'] - prev_info['number_of_lines']
     if lines_diff > 0:
-        total_reward += lines_diff * 30.0 # 強力獎勵消行
+        total_reward += lines_diff * 10.0 # 強力獎勵消行
         if lines_diff >= 2:
-            total_reward += lines_diff * 5.0  # 額外獎勵多行消除
-        print(f"Cleared {lines_diff} lines! +{lines_diff * 20.0} reward.")
+            total_reward += lines_diff * 2.0  # 額外獎勵多行消除
+        print(f"Cleared {lines_diff} lines! +{lines_diff * 10.0 + (lines_diff * 2.0 if lines_diff >= 2 else 0)} reward.")
 
     # -------------------------------------------------------------------------
     # B. 進階策略獎勵 (參考該 Repo)
@@ -109,22 +109,22 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
 
     if is_board_changed:
 
-        total_reward += 5.0
+        total_reward += 1.0
         # 1. 填補空洞獎勵
         holes_diff = prev_info["holes"] - current_holes
-        total_reward += holes_diff * 0.2
+        total_reward += holes_diff * 0.1
         # print(f"Holes reduced by {holes_diff}, +{holes_diff * 0.2} reward.")
 
         # 2. 平整度獎勵
         bumps_diff = prev_info["bumps"] - current_bumps
-        total_reward += bumps_diff * 0.5
+        total_reward += bumps_diff * 0.1
         # print(f"Bumps reduced by {bumps_diff}, +{bumps_diff * 0.5} reward.")
 
         # 3. 高度懲罰 (越高扣越多)
         if current_height > 10:
             height_diff = current_height - prev_info["height"]
             if height_diff > 0:
-                height_penalty = height_diff * 1.0
+                height_penalty = height_diff * 0.1
                 total_reward -= height_penalty
                 # print(f"Height increased by {height_diff}, -{height_penalty} penalty.")
 
@@ -138,6 +138,6 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
     }
 
     # Clip reward 避免梯度爆炸
-    # total_reward = np.clip(total_reward, -15, 100)
+    total_reward = np.clip(total_reward, -15, 100)
 
     return total_reward, new_stats
