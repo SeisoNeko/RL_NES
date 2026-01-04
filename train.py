@@ -148,7 +148,7 @@ def main():
         actions = []
         for i in range(NUM_ENVS):
             single_state = state_input[i]
-            print(f"Single state shape: {single_state.shape}")
+            # print(f"Single state shape: {single_state.shape}")
             action = dqn.take_action(single_state)  # Get action for each env
             actions.append(action)
 
@@ -156,7 +156,7 @@ def main():
         dones = [t or tr for t, tr in zip(terminateds, truncateds)]
 
         next_states_input = np.expand_dims(next_states, axis=1)
-        print(f"Next states input shape: {next_states_input.shape}")
+        # print(f"Next states input shape: {next_states_input.shape}")
 
         for i in range(NUM_ENVS):
             current_reward = rewards[i]
@@ -171,18 +171,18 @@ def main():
             )
 
             if dones[i]:
-                if i==0:
-                    print(f"Env 0 Reward: {cumulative_reward[i]}")
+                """ if i==0:
+                    print(f"Env 0 Reward: {cumulative_reward[i]}") """
                 if cumulative_reward[i] > best_reward:
                     best_reward = cumulative_reward[i]
                     os.makedirs("ckpt_test", exist_ok=True)
-                    model_path = os.path.join("ckpt_test",f"step_{timestep}_reward_{int(best_reward)}.pth")
+                    model_path = os.path.join("ckpt_test",f"step_{step}_reward_{int(best_reward)}.pth")
                     torch.save(dqn.q_net.state_dict(), model_path)
                     print(f"Model saved: {model_path}")
                 cumulative_reward[i] = 0  # Reset for next episode
 
         state_input = next_states_input
-        print(f"Updated state input shape: {state_input.shape}")
+        # print(f"Updated state input shape: {state_input.shape}")
 
         if len(memory) >= BATCH_SIZE:
             for _ in range(4):  # Train 4 times per timestep
@@ -201,19 +201,19 @@ def main():
         dqn.epsilon = max(EPSILON_END, dqn.epsilon - EPSILON_DECAY)  # Gradually decrease epsilon
         if step % 10000 == 0:
             print(f"Step: {step}, Epsilon: {dqn.epsilon:.4f}")
-        step += 1
 
         # Print cumulative reward for the current timestep
-        if timestep % 1000 == 0:
-            print(f"Timestep {timestep} - Total Reward: {cumulative_reward}")
+        """ if step % 1000 == 0:
+            print(f"Timestep {timestep} - Total Reward: {cumulative_reward}") """
 
-        if timestep % 10000 == 0:
+        if step % 10000 == 0:
             # Save model checkpoint
             os.makedirs("ckpt_test", exist_ok=True)
-            model_path = os.path.join("ckpt_test",f"step_{timestep}.pth")
+            model_path = os.path.join("ckpt_test",f"step_{step}.pth")
             torch.save(dqn.q_net.state_dict(), model_path)
-            print(f"Model checkpoint saved at timestep {timestep}: {model_path}")
+            print(f"Model checkpoint saved at step {step}: {model_path}")
 
+        step += 1
 
     envs.close()
 

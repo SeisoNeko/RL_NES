@@ -67,9 +67,9 @@ class CustomCNN(nn.Module):
         else:
             self.input_dim = 203 # Fallback
 
-        self.fc1 = nn.Linear(self.input_dim, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, num_actions)
+        self.fc1 = nn.Linear(self.input_dim, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, num_actions)
 
     def forward(self, x):
         # x shape might be (Batch, 1, 203) or (Batch, 203)

@@ -98,10 +98,10 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
 
     lines_diff = info['number_of_lines'] - prev_info['number_of_lines']
     if lines_diff > 0:
-        total_reward += lines_diff * 10.0 # 強力獎勵消行
+        total_reward += lines_diff * 50.0 # 強力獎勵消行
         if lines_diff >= 2:
-            total_reward += lines_diff * 2.0  # 額外獎勵多行消除
-        print(f"Cleared {lines_diff} lines! +{lines_diff * 10.0 + (lines_diff * 2.0 if lines_diff >= 2 else 0)} reward.")
+            total_reward += lines_diff * 10.0  # 額外獎勵多行消除
+        print(f"Cleared {lines_diff} lines! +{lines_diff * 50.0 + (lines_diff * 10.0 if lines_diff >= 2 else 0)} reward.")
 
     # -------------------------------------------------------------------------
     # B. 進階策略獎勵 (參考該 Repo)
@@ -121,7 +121,7 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
         # print(f"Bumps reduced by {bumps_diff}, +{bumps_diff * 0.5} reward.")
 
         # 3. 高度懲罰 (越高扣越多)
-        if current_height > 10:
+        if current_height > 8:
             height_diff = current_height - prev_info["height"]
             if height_diff > 0:
                 height_penalty = height_diff * 0.1
