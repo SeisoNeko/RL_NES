@@ -7,13 +7,13 @@ from reward import count_holes, count_bumps, get_max_height, calculate_custom_re
 class TetrisWrapper(gym.Wrapper):
     def __init__(self, env, skip=4):
         super().__init__(env)
-        self._skip = skip
         self.prev_info = {
             "score": 0,
             "number_of_lines": 0,
             "holes": 0,
             "bumps": 0,
-            "height": 0
+            "height": 0,
+            "is_game_over": False
         }
 
         # Calculate new Observation Space Size
@@ -33,19 +33,18 @@ class TetrisWrapper(gym.Wrapper):
         elif hasattr(self.env, 'env'):
             return self.env.env.unwrapped.ram
         raise RuntimeError("RAM not found")
-    
+
     def _get_board_state(self, env=None):
         """
-        改用 RAM 讀取盤面，這比視覺辨識更準確，且不會把掉落中的方塊算成洞。
-        注意：這需要 run.py 傳入 env 物件。
+        Use RAM to read the board state, which is more accurate than visual recognition and does not count falling blocks as holes.
+        Note: This requires passing the env object.
         """
         if env is None:
             raise ValueError("Environment (env) must be passed to read RAM state.")
 
         ram = None
         curr_env = env
-        # 獲取原始 RAM 數據
-        # unwrap 到最底層才能拿 ram
+
         for _ in range(10):
             if hasattr(curr_env, 'ram'):
                 ram = curr_env.ram
@@ -61,24 +60,14 @@ class TetrisWrapper(gym.Wrapper):
         if ram is None:
             raise RuntimeError("Could not find NES RAM in the environment wrappers.")
 
-        # NES Tetris (Nintendo 版本) 的盤面記憶體通常在 0x0400 到 0x04C8
-        # 每個 Byte 代表一格。0xEF (239) 通常代表空，其他值代表有顏色。
-        # 盤面大小: 10 columns x 20 rows = 200 bytes
-
         board_ram = ram[0x0400:0x04C8]
 
-        # 轉成 20x10 的矩陣 (Row-Major)
-        # 注意：記憶體可能是 Column-Major 或 Row-Major，通常 NES Tetris 是 Row-Major
-        # 我們先假設是標準排列，如果訓練怪怪的可能要轉置
         board_matrix = np.zeros((20, 10), dtype=int)
 
         for i in range(200):
             row = i // 10
             col = i % 10
 
-            # 0xEF (239) 是空背景 (視版本而定，有時是 0)
-            # 建議印出來觀察一下：print(board_ram)
-            # 這裡假設非 239 且非 0 就是有方塊
             if board_ram[i] != 239 and board_ram[i] != 0:
                 board_matrix[row, col] = 1
 
@@ -91,33 +80,33 @@ class TetrisWrapper(gym.Wrapper):
         0-3: T, 4-7: J, 8-9: Z, 10: O, 11-12: S, 13-16: L, 17-18: I
         """
         vec = np.zeros(7, dtype=np.float32)
-        
+
         if piece_id is None:
             return vec
 
         piece_type = -1
-        
+
         # Exact mapping based on the ROM internal table
-        if 0 <= piece_id <= 3: 
+        if 0 <= piece_id <= 3:
             piece_type = 0   # T
-        elif 4 <= piece_id <= 7: 
+        elif 4 <= piece_id <= 7:
             piece_type = 1   # J
-        elif 8 <= piece_id <= 9: 
+        elif 8 <= piece_id <= 9:
             piece_type = 2   # Z
-        elif piece_id == 10:     
+        elif piece_id == 10:
             piece_type = 3   # O
-        elif 11 <= piece_id <= 12: 
+        elif 11 <= piece_id <= 12:
             piece_type = 4   # S
-        elif 13 <= piece_id <= 16: 
+        elif 13 <= piece_id <= 16:
             piece_type = 5   # L
-        elif 17 <= piece_id <= 18: 
+        elif 17 <= piece_id <= 18:
             piece_type = 6   # I
-            
+
         if piece_type != -1:
             vec[piece_type] = 1.0
-            
+
         return vec
-    
+
     def _get_rotation_one_hot(self, piece_id):
         """
         Extracts rotation (0, 1, 2, 3) from the raw Piece ID.
@@ -127,7 +116,7 @@ class TetrisWrapper(gym.Wrapper):
         if piece_id is None: return vec
 
         rotation_idx = 0
-        
+
         # Logic derived from tetris_env.py ranges
         if 0 <= piece_id <= 3:   # T (4 states)
             rotation_idx = piece_id - 0
@@ -147,7 +136,7 @@ class TetrisWrapper(gym.Wrapper):
         # Safety clamp just in case
         if 0 <= rotation_idx < 4:
             vec[rotation_idx] = 1.0
-            
+
         return vec
 
     def _get_state_vector(self, info):
@@ -167,17 +156,12 @@ class TetrisWrapper(gym.Wrapper):
         next_piece_id = ram[0x00BF]
         curr_x = ram[0x0040]
         curr_y = ram[0x0041]
-        """ info['curr_x'] = curr_x
-        info['curr_y'] = curr_y """
 
         # 4. Feature Engineering
         # One-Hot Encode Pieces
         curr_piece_vec = self._get_one_hot_piece(curr_piece_id)
         curr_rot_vec = self._get_rotation_one_hot(curr_piece_id)
         next_piece_vec = self._get_one_hot_piece(next_piece_id)
-        """ info['current_piece'] = curr_piece_vec
-        info['current_rotation'] = curr_rot_vec
-        info['next_piece'] = next_piece_vec """
 
         # Normalize Position
         # X is usually 0-9, Y is 0-19
@@ -200,7 +184,7 @@ class TetrisWrapper(gym.Wrapper):
             curr_piece_vec, #7
             curr_rot_vec,   #4
             next_piece_vec, #7
-            pos_vec         #2  
+            pos_vec         #2
         ))
 
         return state, board
@@ -222,33 +206,29 @@ class TetrisWrapper(gym.Wrapper):
             "number_of_lines": 0,
             "holes": 0,
             "bumps": 0,
-            "height": 0
+            "height": 0,
+            "is_game_over": False
         }
 
         state, _ = self._get_state_vector(info)
         return state, info
 
     def step(self, action):
-        total_reward = 0.0
-        done = False
-        info = {}
+        # 1. Single Step Logic (No Skip)
+        step_result = self.env.step(action)
 
-        # 1. Skip Frame Logic
-        for _ in range(self._skip):
-            # Handle New vs Old API for step
-            step_result = self.env.step(action)
+        if len(step_result) == 5:
+            obs, reward, terminated, truncated, info = step_result
+            done = terminated or truncated
+        else:
+            obs, reward, done, info = step_result
 
-            if len(step_result) == 5:
-                obs, reward, terminated, truncated, info = step_result
-                done = terminated or truncated
-            else:
-                obs, reward, done, info = step_result
+        # Total reward is just the current frame reward
+        total_reward = reward
+        if done:
+            info['is_game_over'] = True
 
-            total_reward += reward
-            if done:
-                break
-
-        # 2. Preprocess
+        # 2. Get State Vector
         state, current_board = self._get_state_vector(info)
         info["board"] = current_board
 
@@ -266,8 +246,7 @@ class TetrisWrapper(gym.Wrapper):
         self.prev_info["score"] = info.get("score", 0)
         self.prev_info["number_of_lines"] = info.get("number_of_lines", 0)
 
-        if done:
-            custom_reward -= 10
+        # Note: Death penalty is now handled entirely in reward.py,
+        # so we do not subtract anything here.
 
-        # Return 4 values (Gym Vector Env usually handles 4 fine, but reset is strict)
         return state, custom_reward, done, False, info

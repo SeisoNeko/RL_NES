@@ -2,28 +2,28 @@ import numpy as np
 import cv2
 
 # =============================================================================
-# 輔助計算函數 (從圖像中分析盤面狀態)
+# Auxiliary calculation functions (analyze board state from image)
 # =============================================================================
 
 def count_holes(board):
-    """計算盤面中的空洞數 (Holes)"""
+    """Calculate number of holes in the board"""
     holes = 0
     rows, cols = board.shape
 
-    # 對每一列(column)進行掃描
+    # Scan each column
     for c in range(cols):
         block_found = False
         for r in range(rows):
             if board[r, c] == 1:
                 block_found = True
             elif block_found and board[r, c] == 0:
-                # 如果上面已經有磚塊，但下面是空的 -> 這是洞
+                # If there is a block above but it is empty below -> this is a hole
                 holes += 1
     return holes
 
 def count_bumps(board):
-    """計算盤面表面的崎嶇度 (Bumps)"""
-    # 計算每一列的高度
+    """Calculate surface roughness (Bumps) of the board"""
+    # Calculate the height of each column
     rows, cols = board.shape
     col_heights = []
 
@@ -31,11 +31,11 @@ def count_bumps(board):
         h = 0
         for r in range(rows):
             if board[r, c] == 1:
-                h = rows - r # 高度是從底部算上來
+                h = rows - r # Height is calculated from the bottom
                 break
         col_heights.append(h)
 
-    # 計算相鄰列的高度差總和
+    # Calculate sum of height differences between adjacent columns
     bumps = 0
     for i in range(len(col_heights) - 1):
         bumps += abs(col_heights[i] - col_heights[i+1])
@@ -50,21 +50,21 @@ def get_max_height(board):
     return 0
 
 # =============================================================================
-# 主獎勵計算器
+# Main Reward Calculator
 # =============================================================================
 
 def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, env=None, current_board = None):
     """
     :param info: Gym info dict
-    :param base_reward: Gym 原始回傳的 reward
-    :param prev_info: 上一步的 info (包含舊的 holes/bumps 統計)
-    :param current_frame: 處理過的畫面 (84x84)，用於計算新的 holes/bumps --> aborted
-    :param env: 環境實例 (TetrisEnv)，用於取得盤面狀態 --> aborted
-    :param current_board: 當前的盤面二值矩陣 (0/1)
+    :param base_reward: Original reward returned by Gym
+    :param prev_info: Info from the previous step (includes old holes/bumps stats)
+    :param current_frame: Processed frame (84x84), used to calculate new holes/bumps --> aborted
+    :param env: Environment instance (TetrisEnv), used to get board state --> aborted
+    :param current_board: Current board binary matrix (0/1)
     :return: (total_reward, new_info_dict)
     """
 
-    # 1. 取得當前盤面數據
+    # 1. Get current board data
     if current_board is not None:
         board = current_board
     else:
@@ -74,13 +74,13 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
     current_bumps = count_bumps(board)
     current_height = get_max_height(board)
 
-    # 若是第一幀，先初始化 prev_info
+    # If it is the first frame, initialize prev_info first
     if "holes" not in prev_info:
         prev_info["holes"] = current_holes
         prev_info["bumps"] = current_bumps
         prev_info["height"] = current_height
 
-    total_reward = 0
+    total_reward = 0.0
 
     is_board_changed = (
         current_holes != prev_info["holes"] or
@@ -89,55 +89,58 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
         info['number_of_lines'] > prev_info['number_of_lines']
     )
 
-    # -------------------------------------------------------------------------
-    # A. 基礎分數與行數獎勵 (沿用之前的邏輯)
-    # -------------------------------------------------------------------------
-    score_diff = info['score'] - prev_info['score']
-    if score_diff > 0:
-        total_reward += score_diff  # 基礎分數獎勵
-
     lines_diff = info['number_of_lines'] - prev_info['number_of_lines']
-    if lines_diff > 0:
-        total_reward += lines_diff * 50.0 # 強力獎勵消行
-        if lines_diff >= 2:
-            total_reward += lines_diff * 10.0  # 額外獎勵多行消除
-        print(f"Cleared {lines_diff} lines! +{lines_diff * 50.0 + (lines_diff * 10.0 if lines_diff >= 2 else 0)} reward.")
 
-    # -------------------------------------------------------------------------
-    # B. 進階策略獎勵 (參考該 Repo)
-    # -------------------------------------------------------------------------
+    if lines_diff > 0:
+        # Non-linear rewards to encourage Tetris (4 lines)
+        if lines_diff == 1:
+            total_reward += 10.0
+        elif lines_diff == 2:
+            total_reward += 30.0
+        elif lines_diff == 3:
+            total_reward += 60.0
+        elif lines_diff == 4:
+            total_reward += 100.0
+        else:
+            total_reward += lines_diff * 25.0  # Extra lines beyond 4
+
+        print(f"DEBUG: Cleared {lines_diff} lines! Reward: {total_reward}")
 
     if is_board_changed:
 
-        total_reward += 1.0
-        # 1. 填補空洞獎勵
+        # 1. Survival / Placement (Starvation Mode)
+        total_reward += 0.1
+
+        # 2. Holes (The Enemy)
+        # If holes increase, punish HARD.
         holes_diff = prev_info["holes"] - current_holes
-        total_reward += holes_diff * 0.1
-        # print(f"Holes reduced by {holes_diff}, +{holes_diff * 0.2} reward.")
+        if holes_diff < 0:
+            # Created new holes. Penalty: -10 per hole.
+            total_reward += holes_diff * 10.0
+        elif holes_diff > 0:
+            # Filled holes. Small reward.
+            total_reward += holes_diff * 2.0
 
-        # 2. 平整度獎勵
+        # 3. Bumps (Roughness)
         bumps_diff = prev_info["bumps"] - current_bumps
-        total_reward += bumps_diff * 0.1
-        # print(f"Bumps reduced by {bumps_diff}, +{bumps_diff * 0.5} reward.")
+        total_reward += bumps_diff * 0.5
 
-        # 3. 高度懲罰 (越高扣越多)
-        if current_height > 8:
-            height_diff = current_height - prev_info["height"]
-            if height_diff > 0:
-                height_penalty = height_diff * 0.1
-                total_reward -= height_penalty
-                # print(f"Height increased by {height_diff}, -{height_penalty} penalty.")
+        # 4. Height Penalty
+        total_reward -= current_height * 0.1
 
     # -------------------------------------------------------------------------
-    # 更新 info 供下一步使用
+    # C. Game Over Penalty (Always check)
+    # -------------------------------------------------------------------------
+    if info.get('is_game_over', False):
+        total_reward -= 50.0
+
+    # -------------------------------------------------------------------------
+    # Update info
     # -------------------------------------------------------------------------
     new_stats = {
         "holes": current_holes,
         "bumps": current_bumps,
         "height": current_height
     }
-
-    # Clip reward 避免梯度爆炸
-    total_reward = np.clip(total_reward, -15, 100)
 
     return total_reward, new_stats

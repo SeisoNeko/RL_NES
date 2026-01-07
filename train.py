@@ -15,7 +15,7 @@ from gym_tetris.actions import MOVEMENT
 from utils import preprocess_frame
 from reward import *
 from wrapper import TetrisWrapper
-from model import CustomCNN
+from model import CustomNN
 from DQN import DQN, ReplayMemory
 
 import gym
@@ -55,7 +55,7 @@ class RenderWrapper(gym.Wrapper):
 def make_env(rank, args):
     def _thunk():
         env = gym_tetris.make('TetrisA-v0')
-        # 修正 API
+        # Fix API
         if isinstance(env, gym.wrappers.TimeLimit):
             env = env.env
         env = StepAPICompatibility(env, output_truncation_bool=False)
@@ -72,7 +72,7 @@ def make_env(rank, args):
 def main():
     #========= basic train config==============================================
     parser = argparse.ArgumentParser(description="Train DQN on Tetris")
-    parser.add_argument("--lr", type=float, default=0.00001, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--memory_size", type=int, default=10000, help="Replay memory size")
@@ -80,7 +80,7 @@ def main():
     parser.add_argument("--target_update", type=int, default=1000, help="Target network update frequency")
     parser.add_argument("--total_timesteps", type=int, default=200000000, help="Total training timesteps")
     parser.add_argument("--visualize", action='store_true', help="Render the environment")
-    parser.add_argument("--num_workers", type=int, default=8, help="Number of parallel environments")
+    parser.add_argument("--num_workers", type=int, default=64, help="Number of parallel environments")
     parser.add_argument("--load_checkpoint", type=str, default=None, help="Path to checkpoint to load")
 
     args = parser.parse_args()
@@ -95,8 +95,8 @@ def main():
     VISUALIZE = args.visualize
     NUM_ENVS = args.num_workers
 
-    EPSILON_START = 1.0           # 一開始 100% 隨機
-    EPSILON_DECAY = 0.00001      # 每次訓練減少多少
+    EPSILON_START = 1.0           # 100% random at the start
+    EPSILON_DECAY = 0.000001      # Decrease amount per training step
 
     envs = AsyncVectorEnv([make_env(i, args) for i in range(NUM_ENVS)])
 
@@ -107,17 +107,17 @@ def main():
 
     # ========================DQN Initialization==========================================
     obs_shape = (223, )
-    n_actions = len(MOVEMENT)                #定義動作空間大小，使用SIMPLE_MOVEMENT中的動作數量
+    n_actions = len(MOVEMENT)                # Define action space size, using the number of actions in SIMPLE_MOVEMENT
 
-    model = CustomCNN                               #指定模型架構為CustomCNN用於處理圖像並預測各動作的 Q 值
-    dqn = DQN(                                      #初始化 DQN agent
+    model = CustomNN                               # Specify model architecture as CustomNN to process images and predict Q values for each action
+    dqn = DQN(                                      # Initialize DQN agent
         model=model,
-        state_dim=obs_shape,                        #狀態空間大小
-        action_dim=n_actions,                       #動作空間大小
-        learning_rate=LR,                           #學習率
-        gamma=GAMMA,                                #折扣因子，用於計算未來獎勵
-        epsilon=EPSILON_START,                        #初始探索率
-        target_update=TARGET_UPDATE,                #目標網路更新頻率
+        state_dim=obs_shape,                        # State space size
+        action_dim=n_actions,                       # Action space size
+        learning_rate=LR,                           # Learning rate
+        gamma=GAMMA,                                # Discount factor, used to calculate future rewards
+        epsilon=EPSILON_START,                        # Initial exploration rate
+        target_update=TARGET_UPDATE,                # Target network update frequency
         device=device
     )
 
@@ -131,14 +131,14 @@ def main():
         else:
             print(f"Checkpoint not found: {args.load_checkpoint}")
 
-    memory = ReplayMemory(MEMORY_SIZE)              #創建經驗回放記憶體，用於存儲狀態轉移
-    step = 0                                        #記錄總步數
-    best_reward = -float('inf')                     # 儲存最佳累積獎勵Track the best reward in each SAVE_INTERVAL
-    cumulative_reward = 0                           # 當前時間步的總累積獎勵Track cumulative reward for the current timestep
+    memory = ReplayMemory(MEMORY_SIZE)              # Create replay memory to store state transitions
+    step = 0                                        # Record total steps
+    best_reward = -float('inf')                     # Track the best reward in each SAVE_INTERVAL
+    cumulative_reward = 0                           # Track cumulative reward for the current timestep
 
 
 
-    #=======================訓練開始============================
+    #=======================Training Start============================
     state, _ = envs.reset()
     state_input = np.expand_dims(state, axis=1)  # (NUM_ENVS, 1, 203)
     cumulative_reward = np.zeros(NUM_ENVS)

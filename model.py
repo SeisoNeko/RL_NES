@@ -51,29 +51,29 @@ import torch.nn.functional as F
 #         y += residual
 #         return nn.LeakyReLU(inplace=False)(y)
 
-class CustomCNN(nn.Module):
+class CustomNN(nn.Module):
     def __init__(self, input_shape, num_actions):
-        super(CustomCNN, self).__init__()
+        super(CustomNN, self).__init__()
 
-        # input_shape comes in as (203,) from the wrapper
+        # input_shape comes in as (223,) from the wrapper
         # But for this wrapper, the input dimension is simply the length of the vector.
 
         # Determine input size
         if isinstance(input_shape, int):
             self.input_dim = input_shape
         elif isinstance(input_shape, tuple):
-             # If it comes as (203,), take the first element
+             # If it comes as (223,), take the first element
             self.input_dim = input_shape[0]
         else:
-            self.input_dim = 203 # Fallback
+            self.input_dim = 223 # Fallback
 
         self.fc1 = nn.Linear(self.input_dim, 512)
         self.fc2 = nn.Linear(512, 512)
         self.fc3 = nn.Linear(512, num_actions)
 
     def forward(self, x):
-        # x shape might be (Batch, 1, 203) or (Batch, 203)
-        # We need to flatten it to (Batch, 203) just in case
+        # x shape might be (Batch, 1, 223) or (Batch, 223)
+        # We need to flatten it to (Batch, 223) just in case
         x = x.view(x.size(0), -1)
 
         x = F.relu(self.fc1(x))
