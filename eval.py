@@ -17,7 +17,7 @@ from wrapper import TetrisWrapper  # Ensure wrapper.py is in the same directory
 # ========== Config ===========
 # Modify this to the model weights path you want to test
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, default=os.path.join("ckpt_test", "best.pth"),
+parser.add_argument('--model', type=str, default=os.path.join("ckpt", "best.pth"),
                     help='Path to the trained model weights')
 parser.add_argument('--episodes', type=int, default=5,
                     help='Number of episodes to run for evaluation')

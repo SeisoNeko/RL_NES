@@ -75,7 +75,7 @@ def main():
     parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
-    parser.add_argument("--memory_size", type=int, default=10000, help="Replay memory size")
+    parser.add_argument("--memory_size", type=int, default=1000000, help="Replay memory size")
     parser.add_argument("--epsilon_end", type=float, default=0.001, help="Final epsilon value")
     parser.add_argument("--target_update", type=int, default=1000, help="Target network update frequency")
     parser.add_argument("--total_timesteps", type=int, default=200000000, help="Total training timesteps")
@@ -96,7 +96,7 @@ def main():
     NUM_ENVS = args.num_workers
 
     EPSILON_START = 1.0           # 100% random at the start
-    EPSILON_DECAY = 0.000001      # Decrease amount per training step
+    EPSILON_DECAY = 5e-8     # Decrease amount per training step
 
     envs = AsyncVectorEnv([make_env(i, args) for i in range(NUM_ENVS)])
 
@@ -178,8 +178,8 @@ def main():
                     print(f"Env 0 Reward: {cumulative_reward[i]}") """
                 if cumulative_reward[i] > best_reward:
                     best_reward = cumulative_reward[i]
-                    os.makedirs("ckpt_test", exist_ok=True)
-                    model_path = os.path.join("ckpt_test",f"step_{step}_reward_{int(best_reward)}.pth")
+                    os.makedirs("ckpt", exist_ok=True)
+                    model_path = os.path.join("ckpt",f"step_{step}_reward_{int(best_reward)}.pth")
                     torch.save(dqn.q_net.state_dict(), model_path)
                     print(f"Model saved: {model_path}")
                 cumulative_reward[i] = 0  # Reset for next episode
@@ -211,8 +211,8 @@ def main():
 
         if step % 10000 == 0:
             # Save model checkpoint
-            os.makedirs("ckpt_test", exist_ok=True)
-            model_path = os.path.join("ckpt_test",f"step_{step}.pth")
+            os.makedirs("ckpt", exist_ok=True)
+            model_path = os.path.join("ckpt",f"step_{step}.pth")
             torch.save(dqn.q_net.state_dict(), model_path)
             print(f"Model checkpoint saved at step {step}: {model_path}")
 

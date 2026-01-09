@@ -4,9 +4,20 @@ from gym import spaces
 from utils import preprocess_frame
 from reward import count_holes, count_bumps, get_max_height, calculate_custom_reward
 
+shape_dict = {
+    0: "T",
+    1: "J",
+    2: "Z",
+    3: "O",
+    4: "S",
+    5: "L",
+    6: "I"
+}
+
 class TetrisWrapper(gym.Wrapper):
     def __init__(self, env, skip=4):
         super().__init__(env)
+        self.skip = skip
         self.prev_info = {
             "score": 0,
             "number_of_lines": 0,
@@ -214,17 +225,32 @@ class TetrisWrapper(gym.Wrapper):
         return state, info
 
     def step(self, action):
-        # 1. Single Step Logic (No Skip)
-        step_result = self.env.step(action)
+        # print("DEBUG: TetrisWrapper Step with Skip =", self.skip)
+        total_reward = 0.0
+        done = False
+        info = {}
 
-        if len(step_result) == 5:
-            obs, reward, terminated, truncated, info = step_result
-            done = terminated or truncated
-        else:
-            obs, reward, done, info = step_result
+        for _ in range(self.skip):
+            # Step the inner environment
+            step_result = self.env.step(action)
 
-        # Total reward is just the current frame reward
-        total_reward = reward
+            # Handle Gym 0.26+ tuple unpacking (5 values) vs Old Gym (4 values)
+            if len(step_result) == 5:
+                obs, reward, terminated, truncated, inner_info = step_result
+                current_done = terminated or truncated
+            else:
+                obs, reward, current_done, inner_info = step_result
+            
+            # Accumulate the standard game reward (score for lines)
+            total_reward += reward
+            
+            # Update info to the latest frame's info
+            info = inner_info
+            
+            if current_done:
+                done = True
+                break
+
         if done:
             info['is_game_over'] = True
 

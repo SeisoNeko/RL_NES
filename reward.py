@@ -104,7 +104,7 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
         else:
             total_reward += lines_diff * 25.0  # Extra lines beyond 4
 
-        print(f"DEBUG: Cleared {lines_diff} lines! Reward: {total_reward}")
+        # print(f"DEBUG: Cleared {lines_diff} lines! Reward: {total_reward}")
 
     if is_board_changed:
 
