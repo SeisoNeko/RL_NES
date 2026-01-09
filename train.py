@@ -75,7 +75,7 @@ def main():
     parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
-    parser.add_argument("--memory_size", type=int, default=1000000, help="Replay memory size")
+    parser.add_argument("--memory_size", type=int, default=10000000, help="Replay memory size")
     parser.add_argument("--epsilon_end", type=float, default=0.001, help="Final epsilon value")
     parser.add_argument("--target_update", type=int, default=1000, help="Target network update frequency")
     parser.add_argument("--total_timesteps", type=int, default=200000000, help="Total training timesteps")
