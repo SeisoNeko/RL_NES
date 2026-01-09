@@ -4,21 +4,53 @@ import numpy as np
 import random
 from collections import deque
 
-class ReplayMemory:                                                              # Store and sample training data
-    def __init__(self, capacity):
-        self.memory = deque(maxlen=capacity)                                     # Use deque to store data, set maxlen to ensure oldest experiences are removed when capacity is reached
-                                                                                 # self.memory is a deque storing tuples, each representing an experience in format (s,a,r,n_s,d)
-    def push(self, state, action, reward, next_state, done):                     # Add experience (state, action, reward, next_state, done) to memory
-        self.memory.append((state, action, reward, next_state, done))
+class ReplayMemory:                                                              
+    def __init__(self, capacity, state_dim, action_dim=1):
+        self.capacity = capacity
+        self.ptr = 0
+        self.size = 0
+
+        # Pre-allocate huge blocks of memory (The "Excel Sheet" method)
+        # This reserves exactly ~1.8GB of RAM immediately and never grows.
+        self.states = np.zeros((capacity, state_dim), dtype=np.float32)
+        self.actions = np.zeros((capacity, action_dim), dtype=np.int64)
+        self.rewards = np.zeros((capacity, 1), dtype=np.float32)
+        self.next_states = np.zeros((capacity, state_dim), dtype=np.float32)
+        self.dones = np.zeros((capacity, 1), dtype=np.float32)
+
+    def push(self, state, action, reward, next_state, done):
+        """
+        Save a transition. Overwrites old data if buffer is full.
+        """
+        # Directly insert data into the pre-allocated slot
+        self.states[self.ptr] = state
+        self.actions[self.ptr] = action
+        self.rewards[self.ptr] = reward
+        self.next_states[self.ptr] = next_state
+        self.dones[self.ptr] = done
+
+        # Update pointer and size
+        self.ptr = (self.ptr + 1) % self.capacity
+        self.size = min(self.size + 1, self.capacity)
 
     def sample(self, batch_size):
-        batch = random.sample(self.memory, batch_size)                           # batch = Randomly sample batch_size items from memory
-        states, actions, rewards, next_states, dones = zip(*batch)               # zip(*batch) groups data of the same type (e.g., states, actions) from multiple experiences
-                                                                                 # e.g. if batch samples 32 items (s,a,r,n_s,d), then zip(*batch) results in states=[s1...s32], actions=[a1...a32]
-        return np.stack(states), actions, rewards, np.stack(next_states), dones  # np.stack converts states and next_states to NumPy arrays for easier computation
+        """
+        Sample a batch of data.
+        """
+        # Generate random indices
+        ind = np.random.randint(0, self.size, size=batch_size)
 
-    def __len__(self):                                                           # Number of experiences currently stored in memory
-        return len(self.memory)
+        # Retrieve data directly from the blocks
+        return (
+            self.states[ind],
+            self.actions[ind],
+            self.rewards[ind],
+            self.next_states[ind],
+            self.dones[ind]
+        )
+
+    def __len__(self):
+        return self.size
 
 class DQN:
     def __init__(self,
@@ -68,7 +100,9 @@ class DQN:
     # Loss function calculation
     def get_loss(self, states, actions, rewards, next_states, dones):
         # Get current Q-values
-        actions = actions.unsqueeze(1)
+        actions = actions.long()
+        if actions.dim() == 1:
+            actions = actions.unsqueeze(1)
         q_val = self.q_net(states).gather(1, actions).squeeze(1)                 # Calculate current Q-value
 
         # Get maximum expected Q-values

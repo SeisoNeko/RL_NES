@@ -1,10 +1,8 @@
 import os
 import argparse
 import numpy as np
-import random
 import torch
 import torch.nn as nn
-import cv2
 from tqdm import tqdm
 
 import gym_tetris
@@ -134,7 +132,7 @@ def main():
         else:
             print(f"Checkpoint not found: {args.load_checkpoint}")
 
-    memory = ReplayMemory(MEMORY_SIZE)              # Create replay memory to store state transitions
+    memory = ReplayMemory(capacity=MEMORY_SIZE, state_dim=obs_shape[0])              # Create replay memory to store state transitions
     step = 0                                        # Record total steps
     best_reward = -float('inf')                     # Track the best reward in each SAVE_INTERVAL
     cumulative_reward = 0                           # Track cumulative reward for the current timestep
