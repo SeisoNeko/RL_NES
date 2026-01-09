@@ -128,6 +128,9 @@ def main():
             # Sync target network
             if hasattr(dqn, 'target_q_net'):
                 dqn.target_q_net.load_state_dict(dqn.q_net.state_dict())
+
+            # eplison set to minimum to avoid further exploration
+            dqn.epsilon = EPSILON_END
         else:
             print(f"Checkpoint not found: {args.load_checkpoint}")
 

@@ -116,10 +116,10 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
         holes_diff = prev_info["holes"] - current_holes
         if holes_diff < 0:
             # Created new holes. Penalty: -10 per hole.
-            total_reward += holes_diff * 10.0
+            total_reward += holes_diff * 5.0
         elif holes_diff > 0:
             # Filled holes. Small reward.
-            total_reward += holes_diff * 2.0
+            total_reward += holes_diff * 3.0
 
         # 3. Bumps (Roughness)
         bumps_diff = prev_info["bumps"] - current_bumps

@@ -25,7 +25,7 @@ parser.add_argument('--visualize', action='store_true', default=False,
                     help='Whether to visualize the gameplay')
 args = parser.parse_args()
 
-MODEL_PATH = os.path.join("ckpt_test", args.model)
+MODEL_PATH = os.path.join("", args.model)
 VISUALIZE = args.visualize
 TOTAL_EPISODES = args.episodes        # Number of episodes to play
 FPS = 30                  # Limit display speed (otherwise it's too fast to see)

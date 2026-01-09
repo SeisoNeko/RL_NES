@@ -2,55 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Basic Block
-# class Basic_C2D_Block(nn.Module):
-#     def __init__(self, in_dim, out_dim, k_size, stride, is_BN):
-#         super(Basic_C2D_Block, self).__init__()
-#         self.conv_1 = nn.Conv2d(
-#             in_dim, out_dim, kernel_size=k_size, stride=stride, padding=k_size // 2
-#         )
-#         self.bn_1 = nn.BatchNorm2d(out_dim) if is_BN else nn.Identity()
-#         self.lrelu = nn.LeakyReLU(inplace=False)
-
-#     def forward(self, x):
-#         y = self.conv_1(x)
-#         y = self.bn_1(y)
-#         return self.lrelu(y)
-
-# # Residual Block
-# class Res_C2D_Block(nn.Module):
-#     def __init__(self, in_dim, out_dim, num_blocks, stride=1):
-#         super(Res_C2D_Block, self).__init__()
-
-#         layers = []
-#         for i in range(num_blocks):
-#             layers.append(
-#                 Basic_C2D_Block(
-#                     in_dim=in_dim if i == 0 else out_dim,
-#                     out_dim=out_dim,
-#                     k_size=3,
-#                     stride=stride if i == 0 else 1,
-#                     is_BN=False,
-#                 )
-#             )
-#         self.blocks = nn.Sequential(*layers)
-
-#         self.adjust_residual = None
-#         if in_dim != out_dim or stride != 1:
-#             self.adjust_residual = nn.Sequential(
-#                 nn.Conv2d(in_dim, out_dim, kernel_size=1, stride=stride, padding=0, bias=False),
-#                 nn.BatchNorm2d(out_dim),
-#             )
-
-#     def forward(self, x):
-#         residual = x
-#         if self.adjust_residual:
-#             residual = self.adjust_residual(x)
-
-#         y = self.blocks(x)
-#         y += residual
-#         return nn.LeakyReLU(inplace=False)(y)
-
 class CustomNN(nn.Module):
     def __init__(self, input_shape, num_actions):
         super(CustomNN, self).__init__()
