@@ -118,7 +118,7 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
         # If holes increase, punish HARD.
         holes_diff = prev_info["holes"] - current_holes
         if holes_diff < 0:
-            # Created new holes. Penalty: -10 per hole.
+            # Created new holes. Penalty: -5 per hole.
             total_reward += holes_diff * 5.0
         elif holes_diff > 0:
             # Filled holes. Small reward.

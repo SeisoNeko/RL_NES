@@ -86,7 +86,7 @@ class DQN:
             return np.random.randint(self.action_dim)                            # Generate a random integer in range [0, self.action_dim)
 
         # Exploitation Known Policy (Exploit)                                    # If random float > epsilon, execute action based on inference (Exploit)
-        state_x = T.tensor([state], dtype=T.float32, device=self.device)         # Convert single state to PyTorch tensor
+        state_x = T.tensor(state, dtype=T.float32, device=self.device).unsqueeze(0)         # Convert single state to PyTorch tensor
         with T.no_grad():
             q_values = self.q_net(state_x)
 
@@ -107,6 +107,9 @@ class DQN:
 
         # Get maximum expected Q-values
         next_q_val = self.tgt_q_net(next_states).max(dim=1)[0]                   # Calculate maximum target Q-value
+        
+        rewards = rewards.squeeze(1)  # Adjust rewards shape for calculation
+        dones = dones.squeeze(1)      # Adjust dones shape for calculation
 
         # Compute target Q-values [custom-reward]
         q_target = rewards + self.gamma * next_q_val * (1 - dones.float())       # Calculate target Q-value
