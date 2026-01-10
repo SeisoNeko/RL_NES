@@ -108,7 +108,7 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
 
     if is_board_changed:
 
-        # 1. Survival / Placement (Starvation Mode)
+        """# 1. Survival / Placement (Starvation Mode)
         total_reward += 0.1
 
         # 2. Holes (The Enemy)
@@ -126,7 +126,9 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
         total_reward += bumps_diff * 0.5
 
         # 4. Height Penalty
-        total_reward -= current_height * 0.1
+        total_reward -= current_height * 0.1"""
+        # Balanced simpler reward scheme
+        total_reward += base_reward
 
     # -------------------------------------------------------------------------
     # C. Game Over Penalty (Always check)

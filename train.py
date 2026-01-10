@@ -75,11 +75,14 @@ def main():
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--memory_size", type=int, default=10000000, help="Replay memory size")
     parser.add_argument("--epsilon_end", type=float, default=0.001, help="Final epsilon value")
+    parser.add_argument("--epsilon_start", type=float, default=1.0, help="Initial epsilon value")
+    parser.add_argument("--epsilon_decay_rate", type=float, default=0.5, help="Epsilon end rate over total timesteps")
     parser.add_argument("--target_update", type=int, default=1000, help="Target network update frequency")
     parser.add_argument("--total_timesteps", type=int, default=200000000, help="Total training timesteps")
     parser.add_argument("--visualize", action='store_true', help="Render the environment")
     parser.add_argument("--num_workers", type=int, default=64, help="Number of parallel environments")
     parser.add_argument("--load_checkpoint", type=str, default=None, help="Path to checkpoint to load")
+    parser.add_argument("--save_interval", type=int, default=1, help="Model save interval in timesteps")
 
     args = parser.parse_args()
 
@@ -87,14 +90,16 @@ def main():
     BATCH_SIZE = args.batch_size
     GAMMA = args.gamma
     MEMORY_SIZE = args.memory_size
-    EPSILON_END = args.epsilon_end
     TARGET_UPDATE = args.target_update
     TOTAL_TIMESTEPS = args.total_timesteps
     VISUALIZE = args.visualize
     NUM_ENVS = args.num_workers
 
-    EPSILON_START = 1.0           # 100% random at the start
-    EPSILON_DECAY = 5e-8     # Decrease amount per training step
+    EPSILON_START = args.epsilon_start           # 100% random at the start
+    EPSILON_END = args.epsilon_end
+    EPSILON_DECAY = (EPSILON_START - EPSILON_END) / (args.epsilon_decay_rate * TOTAL_TIMESTEPS / NUM_ENVS)    # Decay over total timesteps(Linear)
+    
+    SAVE_INTERVAL = args.save_interval
 
     envs = AsyncVectorEnv([make_env(i, args) for i in range(NUM_ENVS)])
 
@@ -120,15 +125,16 @@ def main():
     )
 
     if args.load_checkpoint:
-        if os.path.exists(args.load_checkpoint):
-            print(f"Loading checkpoint from {args.load_checkpoint}")
-            dqn.q_net.load_state_dict(torch.load(args.load_checkpoint))
+        path = os.path.join("ckpt", args.load_checkpoint)
+        if os.path.exists(path):
+            print(f"Loading checkpoint from {path}")
+            dqn.q_net.load_state_dict(torch.load(path))
             # Sync target network
             if hasattr(dqn, 'target_q_net'):
                 dqn.target_q_net.load_state_dict(dqn.q_net.state_dict())
 
-            # eplison set to minimum to avoid further exploration
-            dqn.epsilon = EPSILON_END
+            # Reset epsilon to start value for further training
+            dqn.epsilon = EPSILON_START
         else:
             print(f"Checkpoint not found: {args.load_checkpoint}")
 
