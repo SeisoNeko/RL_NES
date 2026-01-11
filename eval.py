@@ -45,10 +45,7 @@ piece_dict = {
     6: "I"
 }
 
-# =============================================================================
-# 1. Environment Setup (Must be identical to training logic)
-# =============================================================================
-# Note: We only open 1 environment for evaluation, not AsyncVectorEnv
+# Environment Setup (Must be identical to training logic)
 env = gym_tetris.make('TetrisA-v0')
 
 # Fix API compatibility
@@ -68,9 +65,7 @@ if not VISUALIZE:
 
 print(f"Evaluation Environment Initialized: {env}")
 
-# =============================================================================
-# 2. Model Loading
-# =============================================================================
+# Model Loading
 dqn = DQN(
     model=CustomNN,
     state_dim=OBS_SHAPE,
@@ -97,9 +92,9 @@ else:
     # Not forcing exit here, if you just want to see random actions, comment out the line below
     exit()
 
-# =============================================================================
-# 3. Test Loop
-# =============================================================================
+
+# Test Loop
+
 for episode in range(1, TOTAL_EPISODES + 1):
 
     # Reset returns (state, info) -> we only need state

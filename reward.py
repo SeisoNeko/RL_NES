@@ -1,9 +1,4 @@
 import numpy as np
-import cv2
-
-# =============================================================================
-# Auxiliary calculation functions (analyze board state from image)
-# =============================================================================
 
 def count_holes(board):
     """Calculate number of holes in the board"""
@@ -48,10 +43,6 @@ def get_max_height(board):
         if np.sum(board[r, :]) > 0:
             return rows - r
     return 0
-
-# =============================================================================
-# Main Reward Calculator
-# =============================================================================
 
 def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, env=None, current_board = None):
     """
@@ -115,7 +106,6 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
         total_reward += 1.0
 
         # 2. Holes (The Enemy)
-        # If holes increase, punish HARD.
         holes_diff = prev_info["holes"] - current_holes
         if holes_diff < 0:
             # Created new holes. Penalty: -5 per hole.
@@ -130,16 +120,11 @@ def calculate_custom_reward(info, base_reward, prev_info, current_frame=None, en
 
         # 4. Height Penalty
         total_reward -= current_height * 0.1
-
-    # -------------------------------------------------------------------------
-    # C. Game Over Penalty (Always check)
-    # -------------------------------------------------------------------------
+        
+    # 5. Game Over Penalty
     if info.get('is_game_over', False):
         total_reward -= 50.0
 
-    # -------------------------------------------------------------------------
-    # Update info
-    # -------------------------------------------------------------------------
     new_stats = {
         "holes": current_holes,
         "bumps": current_bumps,

@@ -1,7 +1,6 @@
 import gym
 import numpy as np
 from gym import spaces
-from utils import preprocess_frame
 from reward import count_holes, count_bumps, get_max_height, calculate_custom_reward
 
 shape_dict = {
@@ -271,8 +270,5 @@ class TetrisWrapper(gym.Wrapper):
         self.prev_info.update(new_stats)
         self.prev_info["score"] = info.get("score", 0)
         self.prev_info["number_of_lines"] = info.get("number_of_lines", 0)
-
-        # Note: Death penalty is now handled entirely in reward.py,
-        # so we do not subtract anything here.
 
         return state, custom_reward, done, False, info

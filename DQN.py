@@ -1,8 +1,5 @@
 import torch as T
-import torch.nn.functional as F
-import numpy as np
-import random
-from collections import deque
+import numpy as np 
 
 class ReplayMemory:                                                              
     def __init__(self, capacity, state_dim, action_dim=1):
@@ -90,9 +87,6 @@ class DQN:
         with T.no_grad():
             q_values = self.q_net(state_x)
 
-            # CRITICAL FIX FOR TETRIS:
-            # Use argmax to pick the action with the highest Q-value deterministically.
-            # Do not use softmax sampling here.
             action = T.argmax(q_values, dim=1).item()
 
             return action

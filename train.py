@@ -2,15 +2,12 @@ import os
 import argparse
 import numpy as np
 import torch
-import torch.nn as nn
 from tqdm import tqdm
 
 import gym_tetris
-from gym.wrappers import RecordVideo
 from nes_py.wrappers import JoypadSpace
 from gym_tetris.actions import MOVEMENT
 
-from utils import preprocess_frame
 from reward import *
 from wrapper import TetrisWrapper
 from model import CustomNN
