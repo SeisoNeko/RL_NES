@@ -29,7 +29,7 @@ def preprocess_state(state):
     return np.array(state).flatten()
 
 def select_action(state, policy_net, epsilon, action_dim, ):
-    if random.rand() < epsilon:
+    if random.random() < epsilon:
         return random.randrange(action_dim)
 
     with torch.no_grad():
@@ -89,7 +89,7 @@ def train():
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-            env.render()
+            # env.render()
         
         
         epsilon = max(epsilon_min, epsilon * epsilon_decay)
